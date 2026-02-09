@@ -88,9 +88,7 @@ if(NOT TARGET nlohmann::json)
 endif()
 
 ################## kissfft
-set(USE_EXTERNAL_KISSFFT ON)
-if(NOT KISSFFT_ROOT_DIR)
-set(USE_EXTERNAL_KISSFFT OFF)
+if(MSVC)
 ExternalProject_Add(
   kissfft_project
   GIT_REPOSITORY 		 https://github.com/sheldonrobinson/kissfft.git
@@ -107,14 +105,36 @@ ExternalProject_Add(
   
   BUILD_COMMAND				${cmd_wrapper} msbuild kissfft.sln /p:Configuration=$<CONFIG>
   INSTALL_COMMAND			${cmd_wrapper} msbuild INSTALL.vcxproj /p:Configuration=$<CONFIG>
-  STEP_TARGETS build install
+  STEP_TARGETS  configure build install
   USES_TERMINAL_BUILD 		TRUE
   USES_TERMINAL_INSTALL 	TRUE
 )
+else()
+ExternalProject_Add(
+  kissfft_project
+  GIT_REPOSITORY 		 https://github.com/sheldonrobinson/kissfft.git
+  GIT_TAG        		 origin/master
+  GIT_SHALLOW 		 	 TRUE
+  GIT_SUBMODULES_RECURSE TRUE
+  CMAKE_GENERATOR		 Ninja
+  CMAKE_ARGS		-DKISSFFT_OPENMP=ON
+					-DKISSFFT_PKGCONFIG=ON
+					-DKISSFFT_STATICL=OFF
+					-DKISSFFT_TEST=OFF
+					-DKISSFFT_TOOLS=OFF
+					-DKISSFFT_USE_ALLOCA=OFF
+					-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  
+  BUILD_COMMAND		ninja build
+  INSTALL_COMMAND	ninja install
+  STEP_TARGETS  configure build install
+  USES_TERMINAL_BUILD 		TRUE
+  USES_TERMINAL_INSTALL 	TRUE
+)
+endif()
 
 ExternalProject_Get_property(kissfft_project INSTALL_DIR)
 set(KISSFFT_ROOT_DIR ${INSTALL_DIR} CACHE PATH "kissfft dir" FORCE)
-endif()
 
 set(KISSFFT_BINPATH "${KISSFFT_ROOT_DIR}/bin/kissfft-float-openmp.dll")
 set(KISSFFT_IMPORTLIBPATH "${KISSFFT_ROOT_DIR}/lib/kissfft-float-openmp.lib")
@@ -127,16 +147,12 @@ endif()
 
 if(NOT TARGET kissfft_shared)
 	add_library(kissfft_shared SHARED IMPORTED GLOBAL)
-	if (NOT USE_EXTERNAL_KISSFFT)
-		add_dependencies(kissfft_shared kissfft_project-install)
-	endif()
 	add_dependencies(kissfft_shared kissfft_project-install)
 	set_target_properties(# Specifies the target library.
 						   kissfft_shared
 						   PROPERTIES 
 						   IMPORTED_LOCATION	${KISSFFT_BINPATH}
 						   IMPORTED_IMPLIB		${KISSFFT_IMPORTLIBPATH}
-						   INTERFACE_INCLUDE_DIRECTORIES $<BUILD_INTERFACE:${KISSFFT_INCLUDE_DIR}>
 						 )
 	if (MSVC)
 		set_target_properties(kissfft_shared PROPERTIES 
@@ -147,9 +163,7 @@ endif()
 
 if(NOT TARGET kissfft::kissfft)
 	add_library(kissfft::kissfft INTERFACE IMPORTED)
-	if (NOT USE_EXTERNAL_KISSFFT)
-		add_dependencies(kissfft::kissfft kissfft_project-install)
-	endif()
+	add_dependencies(kissfft::kissfft kissfft_project-install)
     set_target_properties(kissfft::kissfft PROPERTIES
 						  INTERFACE_INCLUDE_DIRECTORIES $<BUILD_INTERFACE:${KISSFFT_INCLUDE_DIR}>
 						  INTERFACE_POSITION_INDEPENDENT_CODE ON
@@ -157,9 +171,6 @@ if(NOT TARGET kissfft::kissfft)
 endif()
 
 ######################### onnxruntime
-set(USE_EXTERNAL_ONNXRUNTIME ON)
-if(NOT ONNXRUNTIME_ROOT_DIR)
-set(USE_EXTERNAL_ONNXRUNTIME OFF)
 if (MSVC)
 ExternalProject_Add(
   ort_project
@@ -184,7 +195,7 @@ ExternalProject_Add(
 									 --skip_tests 
 									 --skip_winml_tests 
 									 --cmake_extra_defines CMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-  INSTALL_COMMAND			${cmd_wrapper} msbuild <SOURCE_DIR>/$<CONFIG>/INSTALL.vcxproj /p:Configuration=Release
+  INSTALL_COMMAND			${cmd_wrapper} msbuild <SOURCE_DIR>/Release/INSTALL.vcxproj /p:Configuration=Release
   STEP_TARGETS build install
   USES_TERMINAL_CONFIGURE	TRUE
   USES_TERMINAL_BUILD 		TRUE
@@ -224,7 +235,6 @@ endif()
 
 ExternalProject_Get_property(ort_project INSTALL_DIR)
 set(ONNXRUNTIME_ROOT_DIR ${INSTALL_DIR} CACHE PATH "onnxruntime root dir" FORCE)
-endif()
 
 set(ORT_HOME ${ONNXRUNTIME_ROOT_DIR})
 set(ORT_LIB_DIR "${ORT_HOME}/lib")
@@ -262,9 +272,7 @@ endif()
 
 if(NOT TARGET onnxruntime_providers_shared)
 	add_library(onnxruntime_providers_shared SHARED IMPORTED GLOBAL)
-	if (NOT USE_EXTERNAL_ONNXRUNTIME)
-		add_dependencies(onnxruntime_providers_shared ort_project-install)
-	endif()
+	add_dependencies(onnxruntime_providers_shared ort_project-install)
 	set_target_properties(# Specifies the target library.
 						   onnxruntime_providers_shared
 						   PROPERTIES 
@@ -280,9 +288,7 @@ if(NOT TARGET onnxruntime_providers_shared)
 endif()
 if(NOT TARGET onnxruntime::onnxruntime)
 	add_library(onnxruntime::onnxruntime INTERFACE IMPORTED)
-	if (NOT USE_EXTERNAL_ONNXRUNTIME)
-		add_dependencies(onnxruntime::onnxruntime ort_project-install)
-	endif()
+	add_dependencies(onnxruntime::onnxruntime ort_project-install)
     set_target_properties(onnxruntime::onnxruntime PROPERTIES
 						  INTERFACE_INCLUDE_DIRECTORIES $<BUILD_INTERFACE:${ORT_HDRS_DIR}>
 						  INTERFACE_POSITION_INDEPENDENT_CODE ON
@@ -293,9 +299,7 @@ set(ORT_ROOT ${ORT_HOME} CACHE PATH "onnxruntime root directory" FORCE)
 include_directories(${ORT_HOME}/include ${ORT_HOME}/include/onnxruntime)
 
 ####################### soundtouch
-set(USE_EXTERNAL_SOUNDTOUCH ON)
-if(NOT SOUNDTOUCH_ROOT_DIR)
-set(USE_EXTERNAL_SOUNDTOUCH OFF)
+if(MSVC)
 ExternalProject_Add(
   soundtouch_project
   GIT_REPOSITORY 		 https://github.com/sheldonrobinson/soundtouch.git
@@ -314,10 +318,29 @@ ExternalProject_Add(
   USES_TERMINAL_BUILD 		TRUE
   USES_TERMINAL_INSTALL 	TRUE
 )
+else()
+ExternalProject_Add(
+  soundtouch_project
+  GIT_REPOSITORY 		 https://github.com/sheldonrobinson/soundtouch.git
+  GIT_TAG        		 origin/master
+  GIT_SHALLOW 			 TRUE
+  GIT_SUBMODULES_RECURSE TRUE
+  CMAKE_GENERATOR		 Ninja
+  CMAKE_ARGS		-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  CMAKE_CACHE_ARGS	-DOPENMP:BOOL=ON 
+					-DSOUNDSTRETCH:BOOL=OFF
+					-DSOUNDTOUCH_DLL:BOOL=ON
+					-DBUILD_SHARED_LIBS:BOOL=ON
+  BUILD_COMMAND				ninja build
+  INSTALL_COMMAND			ninja install
+  STEP_TARGETS build install
+  USES_TERMINAL_BUILD 		TRUE
+  USES_TERMINAL_INSTALL 	TRUE
+)
+endif()
 
 ExternalProject_Get_Property(soundtouch_project INSTALL_DIR)
 set(SOUNDTOUCH_ROOT_DIR ${INSTALL_DIR} CACHE PATH "soundtouch dir" FORCE)
-endif()
 
 set(SOUNDTOUCH_INCLUDE_DIR "${SOUNDTOUCH_ROOT_DIR}/include" CACHE PATH "soundtouch include dir" FORCE)
 
@@ -333,10 +356,7 @@ endif()
 
 if(NOT TARGET SoundTouch)
 	add_library(SoundTouch SHARED IMPORTED GLOBAL)
-	if (NOT USE_EXTERNAL_SOUNDTOUCH)
-		add_dependencies(SoundTouch soundtouch_project-install)
-	endif()
-	
+	add_dependencies(SoundTouch soundtouch_project-install)
     set_target_properties(SoundTouch
 						   PROPERTIES 
 						   IMPORTED_LOCATION	${SOUNDTOUCH_BINPATH}
@@ -347,10 +367,7 @@ endif()
 
 if(NOT TARGET SoundTouchDLL)
 	add_library(SoundTouchDLL SHARED IMPORTED GLOBAL)
-	if (NOT USE_EXTERNAL_SOUNDTOUCH)
-		add_dependencies(SoundTouchDLL soundtouch_project-install)
-	endif()
-	
+	add_dependencies(SoundTouchDLL soundtouch_project-install)
     set_target_properties(SoundTouchDLL
 						   PROPERTIES 
 						   IMPORTED_LOCATION	${SOUNDTOUCHDLL_BINPATH}
@@ -359,9 +376,7 @@ if(NOT TARGET SoundTouchDLL)
 						 )
 endif()
 ####################### libpiper
-set(USE_EXTERNAL_LIBPIPER ON)
-if(NOT LIBPIPER_ROOT_DIR)
-set(USE_EXTERNAL_LIBPIPER OFF)
+if(MSVC)
 ExternalProject_Add(
   piper_project
   GIT_REPOSITORY			https://github.com/sheldonrobinson/piper1-gpl.git
@@ -370,20 +385,40 @@ ExternalProject_Add(
   GIT_SUBMODULES_RECURSE	TRUE
   SOURCE_SUBDIR				libpiper
 
-  CMAKE_ARGS	   -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  CMAKE_ARGS	   -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> -DCMAKE_CXX_FLAGS="-I${ORT_HDRS_DIR}" -DCMAKE_C_FLAGS="-I${ORT_HDRS_DIR}"
   CMAKE_CACHE_ARGS -DONNXRUNTIME_DIR:PATH=${ONNXRUNTIME_ROOT_DIR}
-  BUILD_COMMAND				${cmd_wrapper} msbuild libpiper.sln /p:Configuration=$<CONFIG>
+  BUILD_COMMAND				${cmd_wrapper} msbuild piper.sln /p:Configuration=$<CONFIG>
   INSTALL_COMMAND			${cmd_wrapper} msbuild INSTALL.vcxproj /p:Configuration=$<CONFIG>
   STEP_TARGETS  configure build install
   USES_TERMINAL_BUILD 		TRUE
   USES_TERMINAL_INSTALL 	TRUE
 )
+else()
+ExternalProject_Add(
+  piper_project
+  GIT_REPOSITORY			https://github.com/sheldonrobinson/piper1-gpl.git
+  GIT_TAG					origin/main
+  GIT_SHALLOW				TRUE
+  GIT_SUBMODULES_RECURSE	TRUE
+  SOURCE_SUBDIR				libpiper
+  CMAKE_GENERATOR			Ninja
+  CMAKE_ARGS	   -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> -DCMAKE_CXX_FLAGS="-I${ORT_HDRS_DIR}" -DCMAKE_C_FLAGS="-I${ORT_HDRS_DIR}"
+  CMAKE_CACHE_ARGS -DONNXRUNTIME_DIR:PATH=${ONNXRUNTIME_ROOT_DIR}
+  BUILD_COMMAND				ninja build
+  INSTALL_COMMAND			ninja install
+  STEP_TARGETS  configure build install
+  USES_TERMINAL_BUILD 		TRUE
+  USES_TERMINAL_INSTALL 	TRUE
+)
+endif()
+
 
 ExternalProject_Add_StepDependencies(piper_project configure ort_project-install)
-
 ExternalProject_Get_Property(piper_project INSTALL_DIR)
 set(LIBPIPER_ROOT_DIR ${INSTALL_DIR} CACHE PATH "piper dir" FORCE)
-endif()
+
+add_dependencies(piper_project-configure ort_project-install )
+
 
 set(LIBPIPER_INCLUDE_DIR "${LIBPIPER_ROOT_DIR}/include" CACHE PATH "piper include dir" FORCE)
 
@@ -396,10 +431,7 @@ endif()
 
 if(NOT TARGET piper)
 	add_library(piper SHARED IMPORTED GLOBAL)
-	if (NOT USE_EXTERNAL_LIBPIPER)
-		add_dependencies(piper piper_project-install)
-	endif()
-	
+	add_dependencies(piper piper_project-install)
 	set_target_properties(# Specifies the target library.
 						   piper
 						   PROPERTIES 
@@ -414,7 +446,7 @@ if(NOT TARGET piper)
 	endif()
 endif()
 
-include_directories(${SOUNDTOUCH_INCLUDE_DIR} ${KISSFFT_INCLUDE_DIR} ${ORT_HDRS_DIR} ${LIBPIPER_INCLUDE_DIR})
+include_directories(${SOUNDTOUCH_INCLUDE_DIR} ${KISSFFT_INCLUDE_DIR} ${ORT_HDRS_DIR} ${ORT_INC_DIR} ${LIBPIPER_INCLUDE_DIR})
 
 
 if (UT_BUILD_SHARED_LIBS)
@@ -423,18 +455,7 @@ else()
 	add_library(unnutts STATIC src/unnutts.cpp)
 endif()
 
-if(NOT USE_EXTERNAL_LIBPIPER)
-	add_dependencies(unnutts piper_project-install)
-endif()
-if(NOT USE_EXTERNAL_KISSFFT)
-	add_dependencies(unnutts kissfft_project-install)
-endif()
-if(NOT USE_EXTERNAL_SOUNDTOUCH)
-	add_dependencies(unnutts soundtouch_project-install)
-endif()
-if(NOT USE_EXTERNAL_ONNXRUNTIME)
-	add_dependencies(unnutts ort_project-install)
-endif()
+add_dependencies(unnutts kissfft_project-install soundtouch_project-install ort_project-install piper_project-install)
 
 target_link_directories(unnutts PUBLIC piper onnxruntime kissfft_shared SoundTouch SoundTouchDLL)
 

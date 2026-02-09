@@ -5,12 +5,16 @@
 #include <thread>
 #include <string>
 #include <vector>
+#include <map>
 #include <kissfft/kiss_fftr.h>
-#include "SoundTouchDLL.h"
+#include <soundtouch/SoundTouchDLL.h>
+#include <soundtouch/SoundTouch.h>
 #include "unnu_tts/cxx-api.h"
 
 
 #define NUM_EMOTIONS 15
+
+#define SAMPLE_RATE 22050
 
 typedef void* STProc_HANDLE;
 
@@ -48,14 +52,35 @@ typedef struct ut_speaker_state_deleter {
 
 typedef std::unique_ptr<speaker_state_t, ut_speaker_state_deleter_t> speaker_state_ptr;
 
-typedef struct sp_speaker {
+typedef struct ut_speaker {
 	std::string name;
 	piper_synthesize_options options;
-	speaker_state_ptr state;
-	piper_synthesizer_ptr synthesizer;
-} sp_speaker_t;
+    speaker_state_t* state;
+	piper_synthesizer* synthesizer;
+} ut_speaker_t;
 
-static std::map<int32_t, unnu_speaker_t> g_speakers;
+void ut_speaker_free(ut_speaker_t* speaker){
+    if(speaker != NULL){
+        if(speaker->state != nullptr){
+            ut_speaker_state_free(speaker->state);
+            speaker->state = nullptr;
+        }
+        if(speaker->synthesizer != nullptr){
+            piper_free(speaker->synthesizer);
+            speaker->synthesizer = nullptr;
+        }
+        free(speaker);
+    }
+}
+typedef struct ut_speaker_deleter {
+    void operator()(ut_speaker_t* speaker) {
+        ut_speaker_free(speaker);
+    }
+} ut_speaker_state_deleter_t;
+
+typedef std::unique_ptr<ut_speaker, ut_speaker_state_deleter_t> ut_speaker_ptr;
+
+static std::map<int32_t, ut_speaker_ptr> g_speakers;
 
 EmotionDSPParams_t emotionPresets[NUM_EMOTIONS] = {
     // Happy
@@ -147,7 +172,7 @@ void ut_audio_sample_free(ut_audio_sample_t* sample){
 }
 
 ut_audio_sample_t* ut_vector_to_audio_sample(speaker_state_t* spk, std::vector<float> &processed){
-	ut_audio_sample_t* sample = (ut_audio_sample_t*) malloc(sizeof(sp_audio_sample_t));
+	ut_audio_sample_t* sample = (ut_audio_sample_t*) malloc(sizeof(ut_audio_sample_t));
 	sample->sample_rate = spk->sampleRate;
 	sample->num_samples = processed.size();
 	sample->samples = (float*) calloc(sizeof(float), processed.size());
@@ -303,16 +328,22 @@ void applyDistortion(float *samples, int count, float amount) {
     }
 }
 
-EmotionDSPParams_t sp_get_emotion_settings(EEMOTION_t setting){
+EmotionDSPParams_t ut_get_emotion_settings(EEMOTION_t setting){
 	float emotionWeights[NUM_EMOTIONS] = {0.0f};
 	if(setting != EEMOTION::EMOTION_NEUTRAL){
 		emotionWeights[setting] = 1.0f;
 	}
 	return blendEmotions(emotionWeights);
 }
+static std::map<std::pair<int32_t, bool>, EEMOTION_t> blendedParamsCache;
+
+void ut_set_speaker_emotion(int32_t speaker_id, bool is_robot, EEMOTION_t setting) {
+    std::pair<int32_t, bool> cacheKey = { speaker_id, is_robot };
+    blendedParamsCache[cacheKey] = setting;
+}
 
 void ut_update_sfx(int32_t speaker_id, EmotionDSPParams_t blendedParams, float alpha){
-	speaker_state_t* state = g_speakers[speaker_id].state.get();
+	speaker_state_t* state = g_speakers[speaker_id]->state;
 	// Smooth params
     state->currentPitch        = smooth(state->currentPitch, blendedParams.pitchSemiTones, alpha);
     state->currentFormantShift = smooth(state->currentFormantShift, blendedParams.formantShift, alpha);
@@ -326,8 +357,7 @@ void ut_update_sfx(int32_t speaker_id, EmotionDSPParams_t blendedParams, float a
 }
 
 // Apply emotions
-ut_audio_sample_t* ut_apply_sfx(int32_t speaker_id, float *samples, int count, bool is_robot){
-	speaker_state_t* state = g_speakers[speaker_id].state.get();
+ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int count, bool is_robot){
 	// Pitch shift
 	soundtouch_setPitchSemiTones(state->stEmotions, state->currentPitch);
 	soundtouch_putSamples(state->stEmotions, samples, count);
@@ -364,20 +394,19 @@ ut_audio_sample_t* ut_apply_sfx(int32_t speaker_id, float *samples, int count, b
 	
 	processed.resize(received);
 	
-	return vector_to_audio_sample(state, processed);
+	return ut_vector_to_audio_sample(state, processed);
 }
 
 void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id, const char* actor_name){ // sid speaker id, vid voice id
-	unnu_speaker_t speaker;
+	ut_speaker_t speaker;
 	std::string _path(model_path);
-	piper_synthesizer *synth = piper_create(model_path, NULL, NULL);
-	speaker.synthesizer = piper_synthesizer_ptr(synth);
+	speaker.synthesizer = piper_create(model_path, NULL, NULL);
 
 	speaker.name = std::string(actor_name);
-	speaker.options = piper_default_synthesize_options(speaker.synthesizer.get());
+	speaker.options = piper_default_synthesize_options(speaker.synthesizer);
 	speaker.options.speaker_id = voice_id;
 	
-	speaker.state = std::make_unique<speaker_state_t>();
+	speaker.state = (speaker_state_t*) std::malloc(sizeof(speaker_state_t));
 	speaker.state->speaker = speaker_id;
 	speaker.state->sampleRate = SAMPLE_RATE;
 	speaker.state->stEmotions = soundtouch_createInstance();
@@ -390,7 +419,7 @@ void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id
 	soundtouch_setChannels(speaker.state->stPitch, 1);
 	soundtouch_setSampleRate(speaker.state->stPitch, SAMPLE_RATE);
 	soundtouch_setTempo(speaker.state->stPitch, 1.0f);
-	soundtouch_setPitchSemiTones(speaker->state.stPitch, 2.0f);
+	soundtouch_setPitchSemiTones(speaker.state->stPitch, 2.0f);
 	
 	speaker.state->stFormant = soundtouch_createInstance();
 	soundtouch_setChannels(speaker.state->stFormant, 1);
@@ -407,8 +436,9 @@ void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id
 void ut_rm_speaker(int32_t speaker_id) {
 	auto search = g_speakers.find(speaker_id);
 	if (search != g_speakers.end()){
-		g_speakers[speaker_id].state = nullptr;
-		g_speakers[speaker_id].synthesizer = nullptr;
+		ut_speaker_state_free(g_speakers[speaker_id]->state);
+		piper_free(g_speakers[speaker_id]->synthesizer);
+        ut_speaker_free(g_speakers[speaker_id].release());
 		g_speakers.erase(speaker_id);
 	}
 }
@@ -416,7 +446,7 @@ void ut_rm_speaker(int32_t speaker_id) {
 int32_t ut_get_speaker_id(const char* actor_name){
 	std::string name(actor_name);
 	for (const auto& [key, value] : g_speakers){
-		if (value.name.compare(name) == 0){
+		if (value->name.compare(name) == 0){
 			return key;
 		}
 	}
@@ -425,22 +455,23 @@ int32_t ut_get_speaker_id(const char* actor_name){
 
 void ut_terminate() {
 	for (const auto& [key, value] : g_speakers){
-		value.state = nullptr;
-		value.synthesizer = nullptr;
+        ut_speaker_state_free(value->state);
+        piper_free(value->synthesizer);
 	}
 	g_speakers.clear();
 }
 
 ut_audio_sample_t* unnu_tts(int32_t speaker_id, EEMOTION_t emotion, bool is_robot, const char* text){
-	auto& blendedparams = sp_get_emotion_settings(emotion);
-	ut_update_sfx(g_speakers[speaker_id].state.get(), blendedparams, 1.0f);
+	auto& blendedparams = ut_get_emotion_settings(emotion);
+	ut_speaker_t* speaker = g_speakers[speaker_id].get();
+	ut_update_sfx(speaker_id, blendedparams, 1.0f);
 	piper_audio_chunk chunk;
 	std::vector<float> _audio;
-	piper_synthesizer* synth = g_speakers[speaker_id].synthesizer.get();
+	piper_synthesizer* synth = speaker->synthesizer;
 	piper_synthesize_start(synth, text,
-						   &(g_speakers[speaker_id].options) /* NULL for defaults */);
+						   &(speaker->options) /* NULL for defaults */);
 	while (piper_synthesize_next(synth, &chunk) != PIPER_DONE) {	
 		_audio.insert(_audio.end(), chunk.samples, chunk.samples + chunk.num_samples);
 	}
-	ut_apply_sfx(g_speakers[speaker_id].state.get(), _audio.data(), _audio.size(), is_robot);
+	ut_apply_sfx(speaker->state, _audio.data(), _audio.size(), is_robot);
 }

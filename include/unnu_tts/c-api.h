@@ -39,6 +39,8 @@ UNNU_TTS_API int32_t ut_get_speaker_id(const char* name);
 
 UNNU_TTS_API EmotionDSPParams_t ut_get_emotion_settings(EEMOTION_t setting);
 
+UNNU_TTS_API void ut_set_speaker_emotion(int32_t speaker_id, bool is_robot, EEMOTION_t setting);
+
 UNNU_TTS_API void ut_update_sfx(int32_t speaker_id, EmotionDSPParams_t blendedParams, float alpha);
 
 UNNU_TTS_API ut_audio_sample_t* unnu_tts(int32_t speaker_id, EEMOTION_t emotion, bool is_robot, const char* text);
