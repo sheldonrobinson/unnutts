@@ -17,6 +17,11 @@
 	#include <stdbool.h>
 #endif
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 typedef struct ut_audio_sample {
   /**
    * \brief Raw samples returned from the voice model.
@@ -65,6 +70,12 @@ typedef struct EmotionDSPParams {
     float distortionAmount;
 } EmotionDSPParams_t;
 
+#ifdef __cplusplus
+}
+#endif
+
+
+	
 
 
 #endif // _UNNU_TTS_TYPES_H

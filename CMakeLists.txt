@@ -457,7 +457,7 @@ endif()
 
 add_dependencies(unnutts kissfft_project-install soundtouch_project-install ort_project-install piper_project-install)
 
-target_link_directories(unnutts PUBLIC piper onnxruntime kissfft_shared SoundTouch SoundTouchDLL)
+target_link_libraries(unnutts PUBLIC piper onnxruntime kissfft_shared SoundTouch SoundTouchDLL)
 
 
 set_target_properties(unnutts PROPERTIES
