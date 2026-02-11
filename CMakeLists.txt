@@ -18,7 +18,7 @@ else()
 	set(BUILD_SHARED_LIBS_DEFAULT ON)
 endif()
 
-option(UT_BUILD_SHARED_LIBS "Build SpeechProcessor as shared library" ${BUILD_SHARED_LIBS_DEFAULT})
+option(UT_BUILD_SHARED_LIBS "Build as shared library" ${BUILD_SHARED_LIBS_DEFAULT})
 
 if (WIN32)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
@@ -49,44 +49,44 @@ if(MSVC)
   set(cmd_wrapper ${Vcvars_LAUNCHER})
 endif()
 
+if(NOT TARGET nlohmann_json::nlohmann_json)
+	################## nlohmann
+	FetchContent_Declare(
+	  utnlohmann_json
+	  GIT_REPOSITORY 		 https://github.com/nlohmann/json.git
+	  GIT_TAG        		 v3.12.0
+	  GIT_SHALLOW 			 TRUE
+	  GIT_SUBMODULES_RECURSE TRUE
+			 
+	  OVERRIDE_FIND_PACKAGE
+	)
 
-################## nlohmann
-FetchContent_Declare(
-  utnlohmann_json
-  GIT_REPOSITORY 		 https://github.com/nlohmann/json.git
-  GIT_TAG        		 v3.12.0
-  GIT_SHALLOW 			 TRUE
-  GIT_SUBMODULES_RECURSE TRUE
-		 
-  OVERRIDE_FIND_PACKAGE
-)
+	set(JSON_BuildTests OFF CACHE BOOL "Build the unit tests when BUILD_TESTING is enabled." FORCE)
+	set(JSON_CI OFF CACHE BOOL "Enable CI build targets." FORCE)
+	set(JSON_Diagnostics OFF CACHE BOOL  "Use extended diagnostic messages." FORCE)
+	set(JSON_Diagnostic_Positions OFF CACHE BOOL "Enable diagnostic positions." FORCE)
+	set(JSON_GlobalUDLs ON CACHE BOOL "Place user-defined string literals in the global namespace." FORCE)
+	set(JSON_ImplicitConversions ON CACHE BOOL "Enable implicit conversions." FORCE)
+	set(JSON_DisableEnumSerialization OFF CACHE BOOL "Disable default integer enum serialization." FORCE)
+	set(JSON_LegacyDiscardedValueComparison OFF CACHE BOOL "Enable legacy discarded value comparison." FORCE)
+	set(JSON_Install OFF CACHE BOOL "Install CMake targets during install step." FORCE)
+	set(JSON_MultipleHeaders ON CACHE BOOL "Use non-amalgamated version of the library." FORCE)
+	set(JSON_SystemInclude OFF CACHE BOOL "Include as system headers (skip for clang-tidy)." FORCE)
 
-set(JSON_BuildTests OFF CACHE BOOL "Build the unit tests when BUILD_TESTING is enabled." FORCE)
-set(JSON_CI OFF CACHE BOOL "Enable CI build targets." FORCE)
-set(JSON_Diagnostics OFF CACHE BOOL  "Use extended diagnostic messages." FORCE)
-set(JSON_Diagnostic_Positions OFF CACHE BOOL "Enable diagnostic positions." FORCE)
-set(JSON_GlobalUDLs ON CACHE BOOL "Place user-defined string literals in the global namespace." FORCE)
-set(JSON_ImplicitConversions ON CACHE BOOL "Enable implicit conversions." FORCE)
-set(JSON_DisableEnumSerialization OFF CACHE BOOL "Disable default integer enum serialization." FORCE)
-set(JSON_LegacyDiscardedValueComparison OFF CACHE BOOL "Enable legacy discarded value comparison." FORCE)
-set(JSON_Install OFF CACHE BOOL "Install CMake targets during install step." FORCE)
-set(JSON_MultipleHeaders ON CACHE BOOL "Use non-amalgamated version of the library." FORCE)
-set(JSON_SystemInclude OFF CACHE BOOL "Include as system headers (skip for clang-tidy)." FORCE)
+	FetchContent_MakeAvailable(utnlohmann_json)
 
-FetchContent_MakeAvailable(utnlohmann_json)
+	file(REAL_PATH ${utnlohmann_json_SOURCE_DIR} NLOHMANN_JSON_SOURCE_DIR)
 
-file(REAL_PATH ${utnlohmann_json_SOURCE_DIR} NLOHMANN_JSON_SOURCE_DIR)
+	set(NLOHMANN_JSON_INCLUDE_DIR "${NLOHMANN_JSON_SOURCE_DIR}/single_include" "nholmann json include dir" FORCE)
 
-set(NLOHMANN_JSON_INCLUDE_DIR "${NLOHMANN_JSON_SOURCE_DIR}/single_include" "nholmann json include dir" FORCE)
-
-if(NOT TARGET nlohmann::json)
-	add_library(nlohmann::json INTERFACE IMPORTED)
-    set_target_properties(nlohmann::json PROPERTIES
-                          INTERFACE_LINK_LIBRARIES nlohmann_json 							  
-						  INTERFACE_POSITION_INDEPENDENT_CODE ON
-						  )
+	if(NOT TARGET nlohmann::json)
+		add_library(nlohmann::json INTERFACE IMPORTED)
+		set_target_properties(nlohmann::json PROPERTIES
+							  INTERFACE_LINK_LIBRARIES nlohmann_json 							  
+							  INTERFACE_POSITION_INDEPENDENT_CODE ON
+							  )
+	endif()
 endif()
-
 ################## kissfft
 if(MSVC)
 ExternalProject_Add(

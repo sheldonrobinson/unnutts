@@ -55,19 +55,21 @@ typedef std::unique_ptr<speaker_state_t, ut_speaker_state_deleter_t> speaker_sta
 typedef struct ut_speaker {
 	std::string name;
 	piper_synthesize_options options;
-    speaker_state_t* state;
-	piper_synthesizer* synthesizer;
+    speaker_state_ptr state;
+    unnutts::piper_synthesizer_ptr synthesizer;
 } ut_speaker_t;
 
 void ut_speaker_free(ut_speaker_t* speaker){
     if(speaker != NULL){
         if(speaker->state != nullptr){
-            ut_speaker_state_free(speaker->state);
-            speaker->state = nullptr;
+            speaker->state.reset(nullptr);
+            // ut_speaker_state_free(speaker->state.release());
+            // speaker->state = nullptr;
         }
         if(speaker->synthesizer != nullptr){
-            piper_free(speaker->synthesizer);
-            speaker->synthesizer = nullptr;
+			speaker->synthesizer.reset(nullptr);
+            // piper_free(speaker->synthesizer.release());
+            // speaker->synthesizer = nullptr;
         }
         free(speaker);
     }
@@ -344,7 +346,7 @@ void ut_set_speaker_emotion(int32_t speaker_id, bool is_robot, EEMOTION_t settin
 }
 
 void ut_update_sfx(int32_t speaker_id, EmotionDSPParams_t blendedParams, float alpha){
-	speaker_state_t* state = g_speakers[speaker_id]->state;
+    speaker_state_t* state = g_speakers[speaker_id]->state.get();
 	// Smooth params
     state->currentPitch        = smooth(state->currentPitch, blendedParams.pitchSemiTones, alpha);
     state->currentFormantShift = smooth(state->currentFormantShift, blendedParams.formantShift, alpha);
@@ -400,33 +402,33 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 
 void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id, const char* actor_name){ // sid speaker id, vid voice id
 	ut_speaker_t* speaker = (ut_speaker_t *) malloc(sizeof(ut_speaker_t));
-	std::string _path(model_path);
-	speaker->synthesizer = piper_create(model_path, NULL, NULL);
+	speaker->synthesizer = unnutts::piper_synthesizer_ptr(piper_create(model_path, NULL, NULL));
 
 	speaker->name = std::string(actor_name);
-	speaker->options = piper_default_synthesize_options(speaker->synthesizer);
+	speaker->options = piper_default_synthesize_options(speaker->synthesizer.get());
 	speaker->options.speaker_id = voice_id;
 	
-	speaker->state = (speaker_state_t*) std::malloc(sizeof(speaker_state_t));
-	speaker->state->speaker = speaker_id;
-	speaker->state->sampleRate = SAMPLE_RATE;
-	speaker->state->stEmotions = soundtouch_createInstance();
-	soundtouch_setChannels(speaker->state->stEmotions, 1);
-	soundtouch_setSampleRate(speaker->state->stEmotions, SAMPLE_RATE);
-	soundtouch_setSetting(speaker->state->stEmotions, SETTING_USE_QUICKSEEK, 0);
-	soundtouch_setSetting(speaker->state->stEmotions, SETTING_USE_AA_FILTER, 1);
+    speaker_state_t*  state = (speaker_state_t*) std::malloc(sizeof(speaker_state_t));
+	state->speaker = speaker_id;
+	state->sampleRate = SAMPLE_RATE;
+	state->stEmotions = soundtouch_createInstance();
+	soundtouch_setChannels(state->stEmotions, 1);
+	soundtouch_setSampleRate(state->stEmotions, SAMPLE_RATE);
+	soundtouch_setSetting(state->stEmotions, SETTING_USE_QUICKSEEK, 0);
+	soundtouch_setSetting(state->stEmotions, SETTING_USE_AA_FILTER, 1);
 	
-	speaker->state->stPitch = soundtouch_createInstance();
-	soundtouch_setChannels(speaker->state->stPitch, 1);
-	soundtouch_setSampleRate(speaker->state->stPitch, SAMPLE_RATE);
-	soundtouch_setTempo(speaker->state->stPitch, 1.0f);
-	soundtouch_setPitchSemiTones(speaker->state->stPitch, 2.0f);
+	state->stPitch = soundtouch_createInstance();
+	soundtouch_setChannels(state->stPitch, 1);
+	soundtouch_setSampleRate(state->stPitch, SAMPLE_RATE);
+	soundtouch_setTempo(state->stPitch, 1.0f);
+	soundtouch_setPitchSemiTones(state->stPitch, 2.0f);
 	
-	speaker->state->stFormant = soundtouch_createInstance();
-	soundtouch_setChannels(speaker->state->stFormant, 1);
-	soundtouch_setSampleRate(speaker->state->stFormant, SAMPLE_RATE);
-	soundtouch_setTempo(speaker->state->stFormant, 1.05f);
-	soundtouch_setPitchSemiTones(speaker->state->stFormant, 0.0f);
+	state->stFormant = soundtouch_createInstance();
+	soundtouch_setChannels(state->stFormant, 1);
+	soundtouch_setSampleRate(state->stFormant, SAMPLE_RATE);
+	soundtouch_setTempo(state->stFormant, 1.05f);
+	soundtouch_setPitchSemiTones(state->stFormant, 0.0f);
+	speaker->state = speaker_state_ptr(state);
 
 	// Use emplace to avoid copy/move assignment of unnu_speaker_t
 	g_speakers.emplace(speaker_id, std::move(ut_speaker_ptr(speaker)));
@@ -437,9 +439,10 @@ void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id
 void ut_rm_speaker(int32_t speaker_id) {
 	auto search = g_speakers.find(speaker_id);
 	if (search != g_speakers.end()){
-		ut_speaker_state_free(g_speakers[speaker_id]->state);
-		piper_free(g_speakers[speaker_id]->synthesizer);
-        ut_speaker_free(g_speakers[speaker_id].release());
+		search->second.reset(nullptr);
+		// ut_speaker_state_free(speaker->state.release());
+		// piper_free(speaker->synthesizer.release());
+        // ut_speaker_free(speaker.release());
 		g_speakers.erase(speaker_id);
 	}
 }
@@ -455,9 +458,10 @@ int32_t ut_get_speaker_id(const char* actor_name){
 }
 
 void ut_terminate() {
-	for (const auto& [key, value] : g_speakers){
-        ut_speaker_state_free(value->state);
-        piper_free(value->synthesizer);
+	for (auto& [key, value] : g_speakers){
+        value.reset(nullptr); // This will call the deleter for ut_speaker_t, which in turn calls ut_speaker_free
+        // ut_speaker_state_free(value->state.release());
+        // piper_free(value->synthesizer.release());
 	}
 	g_speakers.clear();
 }
@@ -468,11 +472,11 @@ ut_audio_sample_t* unnu_tts(int32_t speaker_id, EEMOTION_t emotion, bool is_robo
 	ut_update_sfx(speaker_id, blendedparams, 1.0f);
 	piper_audio_chunk chunk;
 	std::vector<float> _audio;
-	piper_synthesizer* synth = speaker->synthesizer;
+	piper_synthesizer* synth = speaker->synthesizer.get();
 	piper_synthesize_start(synth, text,
 						   &(speaker->options) /* NULL for defaults */);
 	while (piper_synthesize_next(synth, &chunk) != PIPER_DONE) {	
 		_audio.insert(_audio.end(), chunk.samples, chunk.samples + chunk.num_samples);
 	}
-	return ut_apply_sfx(speaker->state, _audio.data(), _audio.size(), is_robot);
+	return ut_apply_sfx(speaker->state.get(), _audio.data(), _audio.size(), is_robot);
 }
