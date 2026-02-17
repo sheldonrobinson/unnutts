@@ -24,6 +24,10 @@ if (WIN32)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
+if (MSVC)
+	set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 #################### MSVC vcvars
 FetchContent_Declare(
   ut-find-vcvars
@@ -464,7 +468,7 @@ set_target_properties(unnutts PROPERTIES
   BUILD_WITH_INSTALL_RPATH TRUE
   LINKER_LANGUAGE CXX
   OUTPUT_NAME "unnutts"
-  POSITION_INDEPENDENT_CODE True
+  POSITION_INDEPENDENT_CODE ON
 )
 
 target_include_directories(unnutts PUBLIC include)

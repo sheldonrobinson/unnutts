@@ -9,6 +9,7 @@
 #include <kissfft/kiss_fftr.h>
 #include <soundtouch/SoundTouchDLL.h>
 #include <soundtouch/SoundTouch.h>
+#include <piper.h>
 #include "unnu_tts/cxx-api.h"
 
 
@@ -17,6 +18,25 @@
 #define SAMPLE_RATE 22050
 
 typedef void* STProc_HANDLE;
+
+typedef struct piper_synthesizer_deleter {
+	void operator()(piper_synthesizer* synth) {
+		if (synth != NULL) {
+			piper_free(synth);
+		}
+	}
+} piper_synthesizer_deleter_t;
+
+typedef std::unique_ptr<piper_synthesizer, piper_synthesizer_deleter_t> piper_synthesizer_ptr;
+
+typedef struct ut_audio_sample_deleter {
+	void operator()(ut_audio_sample_t* audio) {
+		ut_audio_sample_free(audio);
+	}
+} ut_audio_sample_deleter_t;
+
+typedef std::unique_ptr<ut_audio_sample_t, ut_audio_sample_deleter_t> audio_sample_ptr;
+
 
 typedef struct speaker_state {
     int32_t speaker;
@@ -63,13 +83,9 @@ void ut_speaker_free(ut_speaker_t* speaker){
     if(speaker != NULL){
         if(speaker->state != nullptr){
             speaker->state.reset(nullptr);
-            // ut_speaker_state_free(speaker->state.release());
-            // speaker->state = nullptr;
         }
         if(speaker->synthesizer != nullptr){
 			speaker->synthesizer.reset(nullptr);
-            // piper_free(speaker->synthesizer.release());
-            // speaker->synthesizer = nullptr;
         }
         free(speaker);
     }
@@ -356,7 +372,6 @@ void ut_update_sfx(int32_t speaker_id, EmotionDSPParams_t blendedParams, float a
     state->currentCompRatio    = smooth(state->currentCompRatio, blendedParams.compRatio, alpha);
     state->currentReverbAmount = smooth(state->currentReverbAmount, blendedParams.reverbAmount, alpha);
     state->currentDistortionAmount = smooth(state->currentDistortionAmount, blendedParams.distortionAmount, alpha);
-	// g_speakers[speaker_id].state = state;
 }
 
 // Apply emotions
@@ -432,7 +447,6 @@ void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id
 
 	// Use emplace to avoid copy/move assignment of unnu_speaker_t
 	g_speakers.emplace(speaker_id, std::move(ut_speaker_ptr(speaker)));
-	// g_speakers[_name] = speaker;
 }
 
 
@@ -440,9 +454,6 @@ void ut_rm_speaker(int32_t speaker_id) {
 	auto search = g_speakers.find(speaker_id);
 	if (search != g_speakers.end()){
 		search->second.reset(nullptr);
-		// ut_speaker_state_free(speaker->state.release());
-		// piper_free(speaker->synthesizer.release());
-        // ut_speaker_free(speaker.release());
 		g_speakers.erase(speaker_id);
 	}
 }
@@ -460,8 +471,6 @@ int32_t ut_get_speaker_id(const char* actor_name){
 void ut_terminate() {
 	for (auto& [key, value] : g_speakers){
         value.reset(nullptr); // This will call the deleter for ut_speaker_t, which in turn calls ut_speaker_free
-        // ut_speaker_state_free(value->state.release());
-        // piper_free(value->synthesizer.release());
 	}
 	g_speakers.clear();
 }
