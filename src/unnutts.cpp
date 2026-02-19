@@ -134,7 +134,7 @@ OrtGetApiBaseFn ut_load_ort()
 		// throw std::runtime_error("Failed to load ONNX Runtime library.");
 		return nullptr;
 	}
-	auto GetApiBase = reinterpret_cast<OrtGetApiBaseFn>(UNNUTTS_GET_PROC(ortLib, "OrtGetApiBase"));
+	GetApiBase = reinterpret_cast<OrtGetApiBaseFn>(UNNUTTS_GET_PROC(ortLib, "OrtGetApiBase"));
 	if (!GetApiBase) {
 		// throw std::runtime_error("Failed to get OrtGetApiBase function.");
 		return nullptr;
