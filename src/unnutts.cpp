@@ -112,15 +112,21 @@ typedef struct ut_speaker_deleter {
 typedef std::unique_ptr<ut_speaker, ut_speaker_deleter_t> ut_speaker_ptr;
 
 // 2. Get OrtGetApiBase function pointer
-using OrtGetApiBaseFn = const OrtApiBase* (*)();
+typedef const OrtApiBase* (*OrtGetApiBaseFn)();
 
 static OrtGetApiBaseFn GetApiBase = nullptr;
 
-OrtGetApiBaseFn ut_load_ort()
+static const OrtApi* ut_load_ort(OrtApiBase* BaseApi)
 {
+    if (BaseApi)
+    {
+        auto result = BaseApi->GetApi(ORT_API_VERSION);
+        return result;
+    }
 	if(GetApiBase)
 	{
-		return GetApiBase;
+        auto result = GetApiBase()->GetApi(ORT_API_VERSION);
+		return result;
 	}
 	// 1. Load ONNX Runtime shared library manually
     #if defined(_WIN32)
@@ -140,8 +146,8 @@ OrtGetApiBaseFn ut_load_ort()
 		return nullptr;
 	}
 	// 3. Initialize ONNX Runtime API
-    Ort::InitApi(GetApiBase()->GetApi(ORT_API_VERSION));
-	return GetApiBase;
+    auto result = GetApiBase()->GetApi(ORT_API_VERSION);
+	return result;
 }
 
 static std::map<int32_t, ut_speaker_ptr> g_speakers;
@@ -206,7 +212,7 @@ EmotionCoord_t emotionCoords[NUM_EMOTIONS] = {
 // Normalize audio
 void normalize(std::vector<float> &audio) {
     float maxVal = 0.0f;
-    for (auto &s : audio) maxVal = std::max(maxVal, std::fabs(s));
+    for (auto &s : audio) maxVal =  maxVal > std::fabs(s) ? maxVal : std::fabs(s);
     if (maxVal > 0.0f) {
         for (auto &s : audio) s /= maxVal;
     }
@@ -461,7 +467,7 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 }
 
 void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id, const char* actor_name){ // sid speaker id, vid voice id
-	auto getApiBase = ut_load_ort();
+	auto getApiBase = ut_load_ort(nullptr);
 	if (!getApiBase)
 	{
 		return;
