@@ -33,7 +33,7 @@ UNNU_TTS_API void ut_terminate();
 
 UNNU_TTS_API void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id, const char* name); // sid speaker id, vid voice id
 
-UNNU_TTS_API void ut_rm_speaker(const char* name); 
+UNNU_TTS_API void ut_rm_speaker(int32_t speaker_id);
 
 UNNU_TTS_API int32_t ut_get_speaker_id(const char* name); 
 
