@@ -1,5 +1,4 @@
 #define _USE_MATH_DEFINES
-#define ORT_MANUAL_INIT // Required for manual API initialization
 
 #include <cmath>
 #include <queue>
