@@ -13,18 +13,6 @@
 #include <piper.h>
 #include "unnu_tts/cxx-api.h"
 
-#if defined(_WIN32)
-    #include <windows.h>
-    #define UNNUTTS_LOAD_LIB(name) LoadLibraryA(name)
-    #define UNNUTTS_GET_PROC(lib, name) GetProcAddress((HMODULE)lib, name)
-    #define UNNUTTS_LIB_HANDLE HMODULE
-#elif defined(__linux__) || defined(__APPLE__)
-    #include <dlfcn.h>
-    #define UNNUTTS_LOAD_LIB(name) dlopen(name, RTLD_NOW | RTLD_LOCAL)
-    #define UNNUTTS_GET_PROC(lib, name) dlsym(lib, name)
-    #define UNNUTTS_LIB_HANDLE void*
-#endif
-
 #define NUM_EMOTIONS 15
 
 #define SAMPLE_RATE 22050
@@ -109,45 +97,6 @@ typedef struct ut_speaker_deleter {
 } ut_speaker_deleter_t;
 
 typedef std::unique_ptr<ut_speaker, ut_speaker_deleter_t> ut_speaker_ptr;
-
-// 2. Get OrtGetApiBase function pointer
-typedef const OrtApiBase* (*OrtGetApiBaseFn)();
-
-static OrtGetApiBaseFn GetApiBase = nullptr;
-
-static const OrtApi* ut_load_ort(OrtApiBase* BaseApi)
-{
-    if (BaseApi)
-    {
-        auto result = BaseApi->GetApi(ORT_API_VERSION);
-        return result;
-    }
-	if(GetApiBase)
-	{
-        auto result = GetApiBase()->GetApi(ORT_API_VERSION);
-		return result;
-	}
-	// 1. Load ONNX Runtime shared library manually
-    #if defined(_WIN32)
-        UNNUTTS_LIB_HANDLE ortLib = UNNUTTS_LOAD_LIB("onnxruntime.dll");
-    #elif defined(__APPLE__)
-        UNNUTTS_LIB_HANDLE ortLib = UNNUTTS_LOAD_LIB("libonnxruntime.dylib");
-    #else
-        UNNUTTS_LIB_HANDLE ortLib = UNNUTTS_LOAD_LIB("libonnxruntime.so");
-    #endif
-	if (!ortLib) {
-		// throw std::runtime_error("Failed to load ONNX Runtime library.");
-		return nullptr;
-	}
-	GetApiBase = reinterpret_cast<OrtGetApiBaseFn>(UNNUTTS_GET_PROC(ortLib, "OrtGetApiBase"));
-	if (!GetApiBase) {
-		// throw std::runtime_error("Failed to get OrtGetApiBase function.");
-		return nullptr;
-	}
-	// 3. Initialize ONNX Runtime API
-    auto result = GetApiBase()->GetApi(ORT_API_VERSION);
-	return result;
-}
 
 static std::map<int32_t, ut_speaker_ptr> g_speakers;
 
@@ -466,11 +415,6 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 }
 
 void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id, const char* actor_name){ // sid speaker id, vid voice id
-	auto getApiBase = ut_load_ort(nullptr);
-	if (!getApiBase)
-	{
-		return;
-	}
 	ut_speaker_t* speaker = (ut_speaker_t *) malloc(sizeof(ut_speaker_t));
 	speaker->synthesizer = unnutts::piper_synthesizer_ptr(piper_create(model_path, NULL, NULL));
 

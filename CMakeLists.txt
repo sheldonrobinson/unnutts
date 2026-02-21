@@ -218,8 +218,8 @@ set(ONNXRUNTIME_ROOT_DIR ${INSTALL_DIR} CACHE PATH "onnxruntime root dir" FORCE)
 set(ORT_HOME ${ONNXRUNTIME_ROOT_DIR})
 set(ORT_LIB_DIR "${ORT_HOME}/lib")
 set(ORT_BIN_DIR "${ORT_HOME}/bin")
-set(ORT_INCLUDE_DIR "${ORT_HOME}/include")
-set(ORT_HDRS_DIR "${ORT_HOME}/include/onnxruntime")
+set(ORT_INCLUDE_DIR "${ORT_HOME}/include" CACHE PATH "onnxruntime include dir" FORCE)
+set(ORT_HDRS_DIR "${ORT_HOME}/include/onnxruntime" CACHE PATH "onnxruntime include dir" FORCE)
 
 set(ORT_BUILD_BINPATH "${ORT_HOME}/bin/onnxruntime.dll")
 set(ORT_BUILD_PROVIDERS_BINPATH "${ORT_HOME}/bin/onnxruntime_providers_shared.dll")
@@ -315,9 +315,6 @@ set(LIBPIPER_INCLUDE_DIR "${LIBPIPER_ROOT_DIR}/include" CACHE PATH "piper includ
 set(LIBPIPER_BINPATH "${LIBPIPER_ROOT_DIR}/bin/piper.dll")
 set(LIBPIPER_IMPORTLIBPATH "${LIBPIPER_ROOT_DIR}/lib/piper.lib")
 
-if(NOT EXISTS ${LIBPIPER_INCLUDE_DIR})
- file(MAKE_DIRECTORY ${LIBPIPER_INCLUDE_DIR})
-endif()
 
 if(NOT TARGET piper)
 	add_library(piper SHARED IMPORTED GLOBAL)
@@ -327,7 +324,6 @@ if(NOT TARGET piper)
 						   PROPERTIES 
 						   IMPORTED_LOCATION	${LIBPIPER_BINPATH}
 						   IMPORTED_IMPLIB		${LIBPIPER_IMPORTLIBPATH}
-						   INTERFACE_INCLUDE_DIRECTORIES $<BUILD_INTERFACE:${LIBPIPER_INCLUDE_DIR}>
 						 )
 	if (MSVC)
 		set_target_properties(piper PROPERTIES 
@@ -345,9 +341,9 @@ endif()
 add_dependencies(unnutts kissfft SoundTouch SoundTouchDLL ort_project-install piper_project-install)
 
 target_link_libraries(unnutts PUBLIC piper onnxruntime kissfft SoundTouch SoundTouchDLL)
-target_include_directories(unnutts 
+target_include_directories(unnutts
 		PRIVATE 
-		    ${LIBPIPER_INCLUDE_DIR}
+			${LIBPIPER_INCLUDE_DIR}
 			${SOUNDTOUCH_BINARY_DIR} 
 			${SOUNDTOUCH_INCUDE_DIR} 
 			${SOUNDTOUCHDLL_INCUDE_DIR}
