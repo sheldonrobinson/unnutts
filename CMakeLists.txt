@@ -341,7 +341,7 @@ endif()
 add_dependencies(unnutts kissfft SoundTouch SoundTouchDLL ort_project-install piper_project-install)
 
 target_link_libraries(unnutts PUBLIC piper onnxruntime kissfft SoundTouch SoundTouchDLL)
-target_include_directories(unnutts
+target_include_directories(unnutts PUBLIC include
 		PRIVATE 
 			${LIBPIPER_INCLUDE_DIR}
 			${SOUNDTOUCH_BINARY_DIR} 
