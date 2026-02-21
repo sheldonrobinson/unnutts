@@ -8,9 +8,9 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <kissfft/kiss_fftr.h>
-#include <soundtouch/SoundTouchDLL.h>
-#include <soundtouch/SoundTouch.h>
+#include <kiss_fftr.h>
+#include <SoundTouchDLL.h>
+#include <SoundTouch.h>
 #include <piper.h>
 #include "unnu_tts/cxx-api.h"
 
