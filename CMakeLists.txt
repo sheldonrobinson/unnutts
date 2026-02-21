@@ -83,14 +83,8 @@ if(NOT TARGET nlohmann_json)
 
 	set(NLOHMANN_JSON_INCLUDE_DIR "${NLOHMANN_JSON_SOURCE_DIR}/single_include" "nholmann json include dir" FORCE)
 
-	if(NOT TARGET nlohmann::json)
-		add_library(nlohmann::json INTERFACE IMPORTED)
-		set_target_properties(nlohmann::json PROPERTIES
-							  INTERFACE_LINK_LIBRARIES nlohmann_json 							  
-							  INTERFACE_POSITION_INDEPENDENT_CODE ON
-							  )
-	endif()
 endif()
+
 ################## kissfft
 FetchContent_Declare(
   kissfft
@@ -139,13 +133,11 @@ set(SOUNDSTRETCH ON CACHE BOOL "Build soundstretch command line utility." FORCE)
 
 FetchContent_MakeAvailable(soundtouch)
 
-
 file(REAL_PATH ${soundtouch_SOURCE_DIR} SOUNDTOUCH_SOURCE_DIR)
 file(REAL_PATH ${soundtouch_BINARY_DIR} SOUNDTOUCH_BINARY_DIR)
 
 set(SOUNDTOUCH_INCUDE_DIR "${SOUNDTOUCH_SOURCE_DIR}/include" CACHE PATH "Sound include directory" FORCE)
 set(SOUNDTOUCHDLL_INCUDE_DIR "${SOUNDTOUCH_SOURCE_DIR}/source/SoundTouchDLL" CACHE PATH "Sound include directory" FORCE)
-
 
 set(SOUNDTOUCH_INCLUDE_DIR "${SOUNDTOUCH_SOURCE_DIR}/include"CACHE PATH "soundtouch include dir" FORCE)
 
@@ -216,15 +208,15 @@ ExternalProject_Get_property(ort_project INSTALL_DIR)
 set(ONNXRUNTIME_ROOT_DIR ${INSTALL_DIR} CACHE PATH "onnxruntime root dir" FORCE)
 
 set(ORT_HOME ${ONNXRUNTIME_ROOT_DIR})
-set(ORT_LIB_DIR "${ORT_HOME}/lib")
-set(ORT_BIN_DIR "${ORT_HOME}/bin")
-set(ORT_INCLUDE_DIR "${ORT_HOME}/include" CACHE PATH "onnxruntime include dir" FORCE)
-set(ORT_HDRS_DIR "${ORT_HOME}/include/onnxruntime" CACHE PATH "onnxruntime include dir" FORCE)
+set(ORT_LIB_DIR "${ONNXRUNTIME_ROOT_DIR}/lib")
+set(ORT_BIN_DIR "${ONNXRUNTIME_ROOT_DIR}/bin")
+set(ORT_INCLUDE_DIR "${ONNXRUNTIME_ROOT_DIR}/include" CACHE PATH "onnxruntime include dir" FORCE)
+set(ORT_HDRS_DIR "${ONNXRUNTIME_ROOT_DIR}/include/onnxruntime" CACHE PATH "onnxruntime include dir" FORCE)
 
-set(ORT_BUILD_BINPATH "${ORT_HOME}/bin/onnxruntime.dll")
-set(ORT_BUILD_PROVIDERS_BINPATH "${ORT_HOME}/bin/onnxruntime_providers_shared.dll")
-set(ORT_BUILD_IMPORTLIBPATH "${ORT_HOME}/lib/onnxruntime.lib")
-set(ORT_BUILD_PROVIDERS_IMPORTLIBPATH "${ORT_HOME}/lib/onnxruntime_providers_shared.lib")
+set(ORT_BUILD_BINPATH "${ONNXRUNTIME_ROOT_DIR}/bin/onnxruntime.dll")
+set(ORT_BUILD_PROVIDERS_BINPATH "${ONNXRUNTIME_ROOT_DIR}/bin/onnxruntime_providers_shared.dll")
+set(ORT_BUILD_IMPORTLIBPATH "${ONNXRUNTIME_ROOT_DIR}/lib/onnxruntime.lib")
+set(ORT_BUILD_PROVIDERS_IMPORTLIBPATH "${ONNXRUNTIME_ROOT_DIR}/lib/onnxruntime_providers_shared.lib")
 
 if(NOT TARGET onnxruntime)
 	add_library(onnxruntime SHARED IMPORTED GLOBAL)
@@ -236,7 +228,6 @@ if(NOT TARGET onnxruntime)
 						   PROPERTIES 
 						   IMPORTED_LOCATION			 ${ORT_BUILD_BINPATH}
 						   IMPORTED_IMPLIB				 ${ORT_BUILD_IMPORTLIBPATH}
-						   INTERFACE_INCLUDE_DIRECTORIES $<BUILD_INTERFACE:${ORT_INC_DIR}>
 						 )
 	if (MSVC)
 		set_target_properties(onnxruntime PROPERTIES 
@@ -253,7 +244,6 @@ if(NOT TARGET onnxruntime_providers_shared)
 						   PROPERTIES 
 						   IMPORTED_LOCATION	${ORT_BUILD_PROVIDERS_BINPATH}
 						   IMPORTED_IMPLIB		${ORT_BUILD_PROVIDERS_IMPORTLIBPATH}
-						   INTERFACE_INCLUDE_DIRECTORIES $<BUILD_INTERFACE:${ORT_INC_DIR}>
 						 )
 	if (MSVC)
 		set_target_properties(onnxruntime_providers_shared PROPERTIES 
@@ -262,7 +252,7 @@ if(NOT TARGET onnxruntime_providers_shared)
 	endif()
 endif()
 
-set(ORT_ROOT ${ORT_HOME} CACHE PATH "onnxruntime root directory" FORCE)
+set(ORT_ROOT ${ONNXRUNTIME_ROOT_DIR} CACHE PATH "onnxruntime root directory" FORCE)
 include_directories(${ORT_HOME}/include ${ORT_HOME}/include/onnxruntime)
 
 ####################### libpiper
