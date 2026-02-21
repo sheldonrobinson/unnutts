@@ -218,12 +218,8 @@ set(ONNXRUNTIME_ROOT_DIR ${INSTALL_DIR} CACHE PATH "onnxruntime root dir" FORCE)
 set(ORT_HOME ${ONNXRUNTIME_ROOT_DIR})
 set(ORT_LIB_DIR "${ORT_HOME}/lib")
 set(ORT_BIN_DIR "${ORT_HOME}/bin")
-set(ORT_INC_DIR "${ORT_HOME}/include")
+set(ORT_INCLUDE_DIR "${ORT_HOME}/include")
 set(ORT_HDRS_DIR "${ORT_HOME}/include/onnxruntime")
-
-if(NOT EXISTS ${ORT_HDRS_DIR})
- file(MAKE_DIRECTORY ${ORT_HDRS_DIR})
-endif()
 
 set(ORT_BUILD_BINPATH "${ORT_HOME}/bin/onnxruntime.dll")
 set(ORT_BUILD_PROVIDERS_BINPATH "${ORT_HOME}/bin/onnxruntime_providers_shared.dll")
@@ -264,14 +260,6 @@ if(NOT TARGET onnxruntime_providers_shared)
 					PDB_OUTPUT_DIRECTORY $<INSTALL_INTERFACE:${ORT_LIB_DIR}>
 					)
 	endif()
-endif()
-if(NOT TARGET onnxruntime::onnxruntime)
-	add_library(onnxruntime::onnxruntime INTERFACE IMPORTED)
-	add_dependencies(onnxruntime::onnxruntime ort_project-install)
-    set_target_properties(onnxruntime::onnxruntime PROPERTIES
-						  INTERFACE_INCLUDE_DIRECTORIES $<BUILD_INTERFACE:${ORT_HDRS_DIR}>
-						  INTERFACE_POSITION_INDEPENDENT_CODE ON
-						 )
 endif()
 
 set(ORT_ROOT ${ORT_HOME} CACHE PATH "onnxruntime root directory" FORCE)
@@ -348,9 +336,6 @@ if(NOT TARGET piper)
 	endif()
 endif()
 
-include_directories(${SOUNDTOUCH_INCLUDE_DIR} ${KISSFFT_INCLUDE_DIR} ${ORT_HDRS_DIR} ${ORT_INC_DIR} ${LIBPIPER_INCLUDE_DIR})
-
-
 if (UT_BUILD_SHARED_LIBS)
 	add_library(unnutts SHARED src/unnutts.cpp)
 else()
@@ -362,10 +347,13 @@ add_dependencies(unnutts kissfft SoundTouch SoundTouchDLL ort_project-install pi
 target_link_libraries(unnutts PUBLIC piper onnxruntime kissfft SoundTouch SoundTouchDLL)
 target_include_directories(unnutts 
 		PRIVATE 
+		    ${LIBPIPER_INCLUDE_DIR}
 			${SOUNDTOUCH_BINARY_DIR} 
 			${SOUNDTOUCH_INCUDE_DIR} 
 			${SOUNDTOUCHDLL_INCUDE_DIR}
 			${KISSFFT_INCUDE_DIR}
+			${ORT_INCLUDE_DIR}
+			${ORT_HDRS_DIR}
 			)
 
 
