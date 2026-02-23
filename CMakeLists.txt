@@ -56,7 +56,7 @@ endif()
 if(NOT TARGET nlohmann_json)
 	################## nlohmann
 	FetchContent_Declare(
-	  utnlohmann_json
+	  ut_nlohmann_json
 	  GIT_REPOSITORY 		 https://github.com/nlohmann/json.git
 	  GIT_TAG        		 v3.12.0
 	  GIT_SHALLOW 			 TRUE
@@ -77,9 +77,9 @@ if(NOT TARGET nlohmann_json)
 	set(JSON_MultipleHeaders ON CACHE BOOL "Use non-amalgamated version of the library." FORCE)
 	set(JSON_SystemInclude OFF CACHE BOOL "Include as system headers (skip for clang-tidy)." FORCE)
 
-	FetchContent_MakeAvailable(utnlohmann_json)
+	FetchContent_MakeAvailable(ut_nlohmann_json)
 
-	file(REAL_PATH ${utnlohmann_json_SOURCE_DIR} NLOHMANN_JSON_SOURCE_DIR)
+	file(REAL_PATH ${ut_nlohmann_json_SOURCE_DIR} NLOHMANN_JSON_SOURCE_DIR)
 
 	set(NLOHMANN_JSON_INCLUDE_DIR "${NLOHMANN_JSON_SOURCE_DIR}/single_include" "nholmann json include dir" FORCE)
 
@@ -87,7 +87,7 @@ endif()
 
 ################## kissfft
 FetchContent_Declare(
-  kissfft
+  ut_kissfft
   GIT_REPOSITORY 		 https://github.com/sheldonrobinson/kissfft.git
   GIT_TAG        		 origin/master
   GIT_SHALLOW 		 	 TRUE
@@ -105,10 +105,10 @@ set(KISSFFT_TEST  OFF CACHE BOOL "Build kissfft tests" FORCE)
 set(KISSFFT_TOOLS  OFF CACHE BOOL "Build kissfft command-line tools" FORCE)
 set(KISSFFT_USE_ALLOCA  OFF CACHE BOOL "Use alloca instead of malloc" FORCE)
 
-FetchContent_MakeAvailable(kissfft)
+FetchContent_MakeAvailable(ut_kissfft)
 
-file(REAL_PATH ${kissfft_SOURCE_DIR} KISFFT_SOURCE_DIR)
-file(REAL_PATH ${kissfft_BINARY_DIR} KISSFFT_BINARY_DIR)
+file(REAL_PATH ${ut_kissfft_SOURCE_DIR} KISFFT_SOURCE_DIR)
+file(REAL_PATH ${ut_kissfft_BINARY_DIR} KISSFFT_BINARY_DIR)
 
 set(KISSFFT_INCUDE_DIR "${KISFFT_SOURCE_DIR}" CACHE PATH "kissfft include directory" FORCE)
 
