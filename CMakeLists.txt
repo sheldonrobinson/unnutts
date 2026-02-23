@@ -139,7 +139,7 @@ file(REAL_PATH ${soundtouch_BINARY_DIR} SOUNDTOUCH_BINARY_DIR)
 set(SOUNDTOUCH_INCUDE_DIR "${SOUNDTOUCH_SOURCE_DIR}/include" CACHE PATH "Sound include directory" FORCE)
 set(SOUNDTOUCHDLL_INCUDE_DIR "${SOUNDTOUCH_SOURCE_DIR}/source/SoundTouchDLL" CACHE PATH "Sound include directory" FORCE)
 
-set(SOUNDTOUCH_INCLUDE_DIR "${SOUNDTOUCH_SOURCE_DIR}/include"CACHE PATH "soundtouch include dir" FORCE)
+set(SOUNDTOUCH_INCLUDE_DIR "${SOUNDTOUCH_SOURCE_DIR}/include" CACHE PATH "soundtouch include dir" FORCE)
 
 ######################### onnxruntime
 if (MSVC)
