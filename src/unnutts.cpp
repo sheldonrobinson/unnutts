@@ -6,6 +6,8 @@
 #include <thread>
 #include <string>
 #include <vector>
+#include <algorithm>
+#include <cctype>
 #include <map>
 #include <kiss_fftr.h>
 #include <SoundTouchDLL.h>
@@ -414,11 +416,21 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 	return ut_vector_to_audio_sample(state, processed);
 }
 
+std::string to_lower_case(const std::string& str) {
+	std::string result = str;
+	std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
+	return std::tolower(c);
+	});
+	return result;
+}
+
 void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id, const char* actor_name){ // sid speaker id, vid voice id
 	ut_speaker_t* speaker = (ut_speaker_t *) malloc(sizeof(ut_speaker_t));
 	speaker->synthesizer = unnutts::piper_synthesizer_ptr(piper_create(model_path, NULL, NULL));
+	
+	std::string name = to_lower_case(std::string(actor_name));
 
-	speaker->name = std::string(actor_name);
+	speaker->name = name;
 	speaker->options = piper_default_synthesize_options(speaker->synthesizer.get());
 	speaker->options.speaker_id = voice_id;
 	
