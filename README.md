@@ -1,3 +1,4 @@
+# UNNU TTS
 **UNNU TTS** is a lightweight, C++-based text‑to‑speech engine built on top of **Piper**, extended with **multi‑speaker support**, **emotion overlays**, and optional **robotic voice effects**. It is designed for developers who want fast, local, production‑ready speech synthesis with flexible voice control and minimal runtime dependencies.
 
 ### Key Features
@@ -15,4 +16,7 @@
 3. **Realtime Language Translation**
 4. Improve **Emotion Overlay Support**
 5. _Optional_ **Spatial Audio**
+
+### 📜 License
+This project is released under the **MIT License**, allowing unrestricted use, modification, and distribution. 
 
