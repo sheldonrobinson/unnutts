@@ -74,19 +74,22 @@ typedef struct ut_speaker_state_deleter {
 typedef std::unique_ptr<speaker_state_t, ut_speaker_state_deleter_t> speaker_state_ptr;
 
 typedef struct ut_speaker {
-	std::string name;
+	char* name;
 	piper_synthesize_options options;
-    speaker_state_ptr state;
-    unnutts::piper_synthesizer_ptr synthesizer;
+    speaker_state_t* state;
+    piper_synthesizer* synthesizer;
 } ut_speaker_t;
 
 void ut_speaker_free(ut_speaker_t* speaker){
     if(speaker != NULL){
+        if (speaker->name != nullptr) {
+            free(speaker->name);
+        }
         if(speaker->state != nullptr){
-            speaker->state.reset(nullptr);
+            ut_speaker_state_free(speaker->state);
         }
         if(speaker->synthesizer != nullptr){
-			speaker->synthesizer.reset(nullptr);
+            piper_free(speaker->synthesizer);
         }
         free(speaker);
     }
@@ -100,7 +103,7 @@ typedef struct ut_speaker_deleter {
 
 typedef std::unique_ptr<ut_speaker, ut_speaker_deleter_t> ut_speaker_ptr;
 
-static std::map<int32_t, ut_speaker_ptr> g_speakers;
+static std::map<int32_t, ut_speaker_t*> g_speakers;
 
 EmotionDSPParams_t emotionPresets[NUM_EMOTIONS] = {
     // Happy
@@ -363,7 +366,7 @@ void ut_set_speaker_emotion(int32_t speaker_id, bool is_robot, EEMOTION_t settin
 }
 
 void ut_update_sfx(int32_t speaker_id, EmotionDSPParams_t blendedParams, float alpha){
-    speaker_state_t* state = g_speakers[speaker_id]->state.get();
+    speaker_state_t* state = g_speakers[speaker_id]->state;
 	// Smooth params
     state->currentPitch        = smooth(state->currentPitch, blendedParams.pitchSemiTones, alpha);
     state->currentFormantShift = smooth(state->currentFormantShift, blendedParams.formantShift, alpha);
@@ -426,12 +429,15 @@ std::string to_lower_case(const std::string& str) {
 
 void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id, const char* actor_name){ // sid speaker id, vid voice id
 	ut_speaker_t* speaker = (ut_speaker_t *) malloc(sizeof(ut_speaker_t));
-	speaker->synthesizer = unnutts::piper_synthesizer_ptr(piper_create(model_path, NULL, NULL));
+	std::string modelPath(model_path);
+	speaker->synthesizer = piper_create(modelPath.c_str(), NULL, NULL);
 	
 	std::string name = to_lower_case(std::string(actor_name));
-
-	speaker->name = name;
-	speaker->options = piper_default_synthesize_options(speaker->synthesizer.get());
+    size_t len = strlen(name.c_str());
+	speaker->name = (char*) std::malloc(len + 1);
+	std::memcpy(speaker->name, name.c_str(), len);
+	speaker->name[len] = '\0';
+	speaker->options = piper_default_synthesize_options(speaker->synthesizer);
 	speaker->options.speaker_id = voice_id;
 	
     speaker_state_t*  state = (speaker_state_t*) std::malloc(sizeof(speaker_state_t));
@@ -454,17 +460,17 @@ void ut_add_speaker(const char* model_path, int32_t voice_id, int32_t speaker_id
 	soundtouch_setSampleRate(state->stFormant, SAMPLE_RATE);
 	soundtouch_setTempo(state->stFormant, 1.05f);
 	soundtouch_setPitchSemiTones(state->stFormant, 0.0f);
-	speaker->state = speaker_state_ptr(state);
+	speaker->state = state;
 
 	// Use emplace to avoid copy/move assignment of unnu_speaker_t
-	g_speakers.emplace(speaker_id, std::move(ut_speaker_ptr(speaker)));
+	g_speakers[speaker_id] = speaker;
 }
 
 
 void ut_rm_speaker(int32_t speaker_id) {
 	auto search = g_speakers.find(speaker_id);
 	if (search != g_speakers.end()){
-		search->second.reset(nullptr);
+		ut_speaker_free(search->second);
 		g_speakers.erase(speaker_id);
 	}
 }
@@ -472,7 +478,8 @@ void ut_rm_speaker(int32_t speaker_id) {
 int32_t ut_get_speaker_id(const char* actor_name){
 	std::string name(actor_name);
 	for (const auto& [key, value] : g_speakers){
-		if (value->name.compare(name) == 0){
+		std::string val(value->name);
+		if (val.compare(name) == 0){
 			return key;
 		}
 	}
@@ -481,22 +488,21 @@ int32_t ut_get_speaker_id(const char* actor_name){
 
 void ut_terminate() {
 	for (auto& [key, value] : g_speakers){
-        value.reset(nullptr); // This will call the deleter for ut_speaker_t, which in turn calls ut_speaker_free
+        ut_speaker_free(value); // This will call the deleter for ut_speaker_t, which in turn calls ut_speaker_free
 	}
 	g_speakers.clear();
 }
 
 ut_audio_sample_t* unnu_tts(int32_t speaker_id, EEMOTION_t emotion, bool is_robot, const char* text){
 	auto& blendedparams = ut_get_emotion_settings(emotion);
-	ut_speaker_t* speaker = g_speakers[speaker_id].get();
+	ut_speaker_t* speaker = g_speakers[speaker_id];
 	ut_update_sfx(speaker_id, blendedparams, 1.0f);
 	piper_audio_chunk chunk;
 	std::vector<float> _audio;
-	piper_synthesizer* synth = speaker->synthesizer.get();
-	piper_synthesize_start(synth, text,
+	piper_synthesize_start(speaker->synthesizer, text,
 						   &(speaker->options) /* NULL for defaults */);
-	while (piper_synthesize_next(synth, &chunk) != PIPER_DONE) {	
+	while (piper_synthesize_next(speaker->synthesizer, &chunk) != PIPER_DONE) {
 		_audio.insert(_audio.end(), chunk.samples, chunk.samples + chunk.num_samples);
 	}
-	return ut_apply_sfx(speaker->state.get(), _audio.data(), _audio.size(), is_robot);
+	return ut_apply_sfx(speaker->state, _audio.data(), _audio.size(), is_robot);
 }
