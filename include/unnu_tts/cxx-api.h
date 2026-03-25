@@ -2,6 +2,7 @@
 
 #include "c-api.h"
 #include <string>
+#include <memory>
 #include <piper.h>
 
 namespace unnutts
