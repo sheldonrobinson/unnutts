@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cctype>
 #include <map>
+#include <cstdlib>
 #include <kiss_fftr.h>
 #include <SoundTouchDLL.h>
 #include <SoundTouch.h>
@@ -297,34 +298,130 @@ void applyEQandCompression(float *samples, int count, int sampleRate,
     }
 }
 
-// Formant shifting with overlap-add & interpolation
-void shiftFormants(float *samples, int count, float shiftFactor) {
-    kiss_fft_cfg cfg = kiss_fft_alloc(count, 0, nullptr, nullptr);
-    std::vector<kiss_fft_cpx> in(count), out(count);
 
-    for (int i = 0; i < count; i++) {
-        in[i].r = samples[i];
-        in[i].i = 0;
+// Simple LPC analysis (autocorrelation method)
+void lpc_analysis(const float* frame, int N, int order, float* a) {
+    std::vector<float> R(order + 1);
+    for (int k = 0; k <= order; k++) {
+        R[k] = 0.0f;
+        for (int n = 0; n < N - k; n++)
+            R[k] += frame[n] * frame[n + k];
     }
 
-    kiss_fft(cfg, in.data(), out.data());
+    float E = R[0];
+    float* alpha = (float*) calloc(order + 1, sizeof(float));
+    float* kappa = (float*) calloc(order + 1, sizeof(float));
 
-    int shiftBins = (int)((count / 2) * (shiftFactor - 1.0f));
-    std::vector<kiss_fft_cpx> shifted(count);
-    for (int i = 0; i < count; i++) {
-        int src = i - shiftBins;
-        if (src >= 0 && src < count)
-            shifted[i] = out[src];
-        else
-            shifted[i] = {0, 0};
+    for (int i = 1; i <= order; i++) {
+        float sum = 0.0f;
+        for (int j = 1; j < i; j++)
+            sum += alpha[j] * R[i - j];
+        kappa[i] = (R[i] - sum) / E;
+
+        alpha[i] = kappa[i];
+        for (int j = 1; j < i; j++)
+            alpha[j] -= kappa[i] * alpha[i - j];
+
+        E *= (1.0f - kappa[i] * kappa[i]);
     }
 
-    kiss_fft(cfg, shifted.data(), in.data()); // inverse FFT
-    for (int i = 0; i < count; i++)
-        samples[i] = in[i].r / count;
+    for (int i = 1; i <= order; i++)
+        a[i - 1] = alpha[i];
 
-    free(cfg);
+    free(alpha);
+    free(kappa);
 }
+
+void formant_shift_lpc(float* input, int signal_length, int N, float shift_factor, int order, float* output, int* count) {
+    int hop = N / 2;
+    kiss_fft_cfg fwd = kiss_fft_alloc(N, 0, NULL, NULL);
+    kiss_fft_cfg inv = kiss_fft_alloc(N, 1, NULL, NULL);
+
+    kiss_fft_cpx* freq = (kiss_fft_cpx *) malloc(sizeof(kiss_fft_cpx) * N);
+    kiss_fft_cpx* time = (kiss_fft_cpx *) malloc(sizeof(kiss_fft_cpx) * N);
+
+    float* window = (float*) calloc(N, sizeof(float));
+    for (int i = 0; i < N; i++)
+        window[i] = 0.5f - 0.5f * cosf(2 * M_PI * i / (N - 1));
+
+    for (int pos = 0; pos + N <= signal_length; pos += hop) {
+        // Windowed frame
+        for (int i = 0; i < N; i++)
+            time[i].r = input[pos + i] * window[i], time[i].i = 0;
+
+        // FFT
+        kiss_fft(fwd, time, freq);
+
+        // Magnitude & phase
+        std::vector<float> mag(N), phase(N);
+        for (int k = 0; k < N; k++) {
+            mag[k] = hypotf(freq[k].r, freq[k].i);
+            phase[k] = atan2f(freq[k].i, freq[k].r);
+        }
+
+        // LPC envelope estimation
+        std::vector<float> a(order);
+        std::vector<float> frame_real(N);
+        for (int i = 0; i < N; i++) frame_real[i] = time[i].r;
+        lpc_analysis(frame_real.data(), N, order, a.data());
+
+        // Envelope magnitude from LPC
+        std::vector<float> env(N / 2);
+        for (int k = 0; k < N / 2; k++) {
+            float omega = 2.0f * M_PI * k / N;
+            float num = 1.0f;
+            float den_r = 1.0f, den_i = 0.0f;
+            for (int i = 0; i < order; i++) {
+                den_r -= a[i] * cosf(omega * (i + 1));
+                den_i -= a[i] * sinf(omega * (i + 1));
+            }
+            env[k] = num / sqrtf(den_r * den_r + den_i * den_i);
+        }
+
+        // Shift envelope with linear interpolation
+        std::vector<float> shifted_env(N / 2, 0.0f);
+        for (int k = 0; k < N / 2; k++) {
+            float src_k = k / shift_factor;
+            int k0 = (int)floorf(src_k);
+            int k1 = k0 + 1;
+            float frac = src_k - k0;
+
+            if (k0 >= 0 && k1 < N / 2) {
+                shifted_env[k] = env[k0] * (1.0f - frac) + env[k1] * frac;
+            }
+        }
+
+        // Apply shifted envelope to original harmonic structure
+        std::vector<float> new_mag(N);
+        for (int k = 0; k < N / 2; k++) {
+            float gain = shifted_env[k] / (env[k] + 1e-8f);
+            new_mag[k] = mag[k] * gain;
+            // Mirror for negative frequencies
+            new_mag[N - k - 1] = new_mag[k];
+        }
+
+        // Rebuild complex spectrum
+        for (int k = 0; k < N; k++) {
+            freq[k].r = new_mag[k] * cosf(phase[k]);
+            freq[k].i = new_mag[k] * sinf(phase[k]);
+        }
+
+        // IFFT
+        kiss_fft(inv, freq, time);
+
+        // Overlap-add to output
+        for (int i = 0; i < N; i++)
+            output[pos + i] += (time[i].r * window[i]) / N;
+        *count = pos + N;
+    }
+
+    free(freq);
+    free(time);
+    free(window);
+    free(fwd);
+    free(inv);
+}
+
 
 // Simple reverb
 void applyReverb(float *samples, int count, float amount) {
@@ -387,36 +484,39 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 	int received = soundtouch_receiveSamples(state->stEmotions, processed.data(), count);
 
 	// Formant shift
-	shiftFormants(processed.data(), received, state->currentFormantShift);
+    std::vector<float> output(processed.data(), processed.data() + received);
+    int nprocessed = received;
+    float shit_factor = is_robot ? 1.2 : 1.0;
+    formant_shift_lpc(processed.data(), received, 1024, shit_factor, 12, output.data(), &nprocessed);
 
 	// EQ + compression
-	applyEQandCompression(processed.data(), received, state->sampleRate,
+	applyEQandCompression(output.data(), nprocessed, state->sampleRate,
         state->blendedParams.eqFreq, state->blendedParams.eqGain,
         state->blendedParams.compThreshold, state->blendedParams.compRatio);
 
 	// Reverb + distortion
-	applyReverb(processed.data(), received, state->blendedParams.reverbAmount);
-	applyDistortion(processed.data(), received, state->blendedParams.distortionAmount);
+	applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
+	applyDistortion(output.data(), nprocessed, state->blendedParams.distortionAmount);
 	
 	if (is_robot) {
-		soundtouch_putSamples(state->stPitch, processed.data(), received);
-		std::vector<float> pitched(received);
-		int receivedPitched = soundtouch_receiveSamples(state->stPitch, pitched.data(), received);
+		soundtouch_putSamples(state->stPitch, output.data(), nprocessed);
+		std::vector<float> pitched(nprocessed);
+		int receivedPitched = soundtouch_receiveSamples(state->stPitch, pitched.data(), nprocessed);
 		
 		soundtouch_putSamples(state->stFormant, pitched.data(), receivedPitched);
-		processed.clear(); processed.resize(receivedPitched);
-		received = soundtouch_receiveSamples(state->stFormant, processed.data(), receivedPitched);
+        output.clear(); output.resize(receivedPitched);
+        nprocessed = soundtouch_receiveSamples(state->stFormant, output.data(), receivedPitched);
 		
 		// Add short metallic delay (~15ms) for C-3PO style
-		addShortDelay(processed, state->sampleRate, 15.0f, 0.35f);
+		addShortDelay(output, state->sampleRate, 15.0f, 0.35f);
 		
 		// Normalize
-		normalize(processed);
+		normalize(output);
 	}
 	
-	processed.resize(received);
+    output.resize(nprocessed);
 	
-	return ut_vector_to_audio_sample(state, processed);
+	return ut_vector_to_audio_sample(state, output);
 }
 
 std::string to_lower_case(const std::string& str) {
