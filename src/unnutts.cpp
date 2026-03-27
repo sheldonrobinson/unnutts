@@ -334,11 +334,22 @@ void lpc_analysis(const float* frame, int N, int order, float* a) {
 
 void formant_shift_lpc(float* input, int signal_length, int N, float shift_factor, int order, float* output, int* count) {
     int hop = N / 2;
-    kiss_fft_cfg fwd = kiss_fft_alloc(N, 0, NULL, NULL);
-    kiss_fft_cfg inv = kiss_fft_alloc(N, 1, NULL, NULL);
+	
+	// Step 1: Query required memory size
+    size_t fwdlenmem = 0;
+    kiss_fft_alloc(N, 0, NULL, &fwdlenmem);
+	// Step 2: Allocate static buffer (stack or global)
+	void *fwdbuffer = (void*) malloc(fwdlenmem);
+	// Step 3: Initialize FFT configuration using preallocated buffer
+    kiss_fft_cfg fwd = kiss_fft_alloc(N, 0, fwdbuffer, &fwdlenmem);
+	
+	size_t invlenmem = 0;
+    kiss_fft_alloc(N, 1, NULL, &invlenmem);
+	void *invbuffer = (void*) malloc(invlenmem);
+    kiss_fft_cfg inv = kiss_fft_alloc(N, 1, invbuffer, &invlenmem);
 
-    kiss_fft_cpx* freq = (kiss_fft_cpx *) malloc(sizeof(kiss_fft_cpx) * N);
-    kiss_fft_cpx* time = (kiss_fft_cpx *) malloc(sizeof(kiss_fft_cpx) * N);
+    kiss_fft_cpx* freq = (kiss_fft_cpx *) calloc(N, sizeof(kiss_fft_cpx));
+    kiss_fft_cpx* time = (kiss_fft_cpx *) calloc(N, sizeof(kiss_fft_cpx));
 
     float* window = (float*) calloc(N, sizeof(float));
     for (int i = 0; i < N; i++)
@@ -418,8 +429,8 @@ void formant_shift_lpc(float* input, int signal_length, int N, float shift_facto
     free(freq);
     free(time);
     free(window);
-    free(fwd);
-    free(inv);
+    free(fwdbuffer);
+    free(invbuffer);
 }
 
 
