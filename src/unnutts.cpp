@@ -198,9 +198,10 @@ void ut_audio_sample_free(ut_audio_sample_t* sample){
 ut_audio_sample_t* ut_vector_to_audio_sample(speaker_state_t* spk, std::vector<float> &processed){
 	ut_audio_sample_t* sample = (ut_audio_sample_t*) malloc(sizeof(ut_audio_sample_t));
 	sample->sample_rate = spk->sampleRate;
-	sample->num_samples = processed.size();
-	sample->samples = (float*) calloc(sizeof(float), processed.size());
-	std::memcpy(sample->samples, processed.data(), sizeof(float) * processed.size());
+	size_t num_samples = processed.size();
+	sample->num_samples = num_samples;
+	sample->samples = (float*) calloc(num_samples, sizeof(float));
+	std::memcpy(sample->samples, processed.data(), sizeof(float) * num_samples);
 	return sample;
 }
 
