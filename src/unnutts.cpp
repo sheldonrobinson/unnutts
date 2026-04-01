@@ -201,7 +201,7 @@ ut_audio_sample_t* ut_vector_to_audio_sample(speaker_state_t* spk, std::vector<f
 	size_t num_samples = processed.size();
 	sample->num_samples = num_samples;
 	sample->samples = (float*) calloc(num_samples, sizeof(float));
-	std::memcpy(sample->samples, processed.data(), sizeof(float) * num_samples);
+	std::memcpy(sample->samples, processed.data(), num_samples * sizeof(float));
 	return sample;
 }
 
