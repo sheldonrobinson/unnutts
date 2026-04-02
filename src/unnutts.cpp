@@ -517,23 +517,7 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 			// Reverb + distortion
 			applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
 			applyDistortion(output.data(), nprocessed, state->blendedParams.distortionAmount);
-			
-			if (is_robot) {
-				soundtouch_putSamples(state->stPitch, output.data(), nprocessed);
-				std::vector<float> pitched(nprocessed);
-				int receivedPitched = soundtouch_receiveSamples(state->stPitch, pitched.data(), nprocessed);
-				
-				soundtouch_putSamples(state->stFormant, pitched.data(), receivedPitched);
-				output.clear(); output.resize(receivedPitched);
-				nprocessed = soundtouch_receiveSamples(state->stFormant, output.data(), receivedPitched);
-				
-				// Add short metallic delay (~15ms) for C-3PO style
-				addShortDelay(output, state->sampleRate, 15.0f, 0.35f);
-				
-				// Normalize
-				normalize(output);
-			}
-			
+						
 			output.resize(nprocessed);
 			result.insert(result.end(), output.begin(), output.end());
 		}		
@@ -561,23 +545,7 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 			// Reverb + distortion
 			applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
 			applyDistortion(output.data(), nprocessed, state->blendedParams.distortionAmount);
-			
-			if (is_robot) {
-				soundtouch_putSamples(state->stPitch, output.data(), nprocessed);
-				std::vector<float> pitched(nprocessed);
-				int receivedPitched = soundtouch_receiveSamples(state->stPitch, pitched.data(), nprocessed);
-				
-				soundtouch_putSamples(state->stFormant, pitched.data(), receivedPitched);
-				output.clear(); output.resize(receivedPitched);
-				nprocessed = soundtouch_receiveSamples(state->stFormant, output.data(), receivedPitched);
-				
-				// Add short metallic delay (~15ms) for C-3PO style
-				addShortDelay(output, state->sampleRate, 15.0f, 0.35f);
-				
-				// Normalize
-				normalize(output);
-			}
-			
+					
 			output.resize(nprocessed);
 			result.insert(result.end(), output.begin(), output.end());
 		}
