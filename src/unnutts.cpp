@@ -200,8 +200,10 @@ ut_audio_sample_t* ut_vector_to_audio_sample(speaker_state_t* spk, std::vector<f
 	sample->sample_rate = spk->sampleRate;
 	size_t num_samples = processed.size();
 	sample->num_samples = num_samples;
-	sample->samples = (float*) calloc(num_samples, sizeof(float));
-	std::memcpy(sample->samples, processed.data(), num_samples * sizeof(float));
+	if(num_samples > 0){
+		sample->samples = (float*) calloc(num_samples, sizeof(float));
+		std::memcpy(sample->samples, processed.data(), num_samples * sizeof(float));
+	}
 	return sample;
 }
 
@@ -611,10 +613,16 @@ ut_audio_sample_t* unnu_tts(int32_t speaker_id, EEMOTION_t emotion, bool is_robo
 	ut_update_sfx(speaker_id, blendedparams, 1.0f);
 	piper_audio_chunk chunk;
 	std::vector<float> _audio;
-	piper_synthesize_start(speaker->synthesizer, text,
+	int result = piper_synthesize_start(speaker->synthesizer, text,
 						   &(speaker->options) /* NULL for defaults */);
-	while (piper_synthesize_next(speaker->synthesizer, &chunk) != PIPER_DONE) {
-		_audio.insert(_audio.end(), chunk.samples, chunk.samples + chunk.num_samples);
+	if( result == PIPER_OK) {
+		while (piper_synthesize_next(speaker->synthesizer, &chunk) != PIPER_DONE) {
+			_audio.insert(_audio.end(), chunk.samples, chunk.samples + chunk.num_samples);
+			if(chunk.is_last){
+				break;
+			}
+		}
+		return ut_apply_sfx(speaker->state, _audio.data(), _audio.size(), is_robot);
 	}
-	return ut_apply_sfx(speaker->state, _audio.data(), _audio.size(), is_robot);
+	return ut_vector_to_audio_sample(speaker->state, _audio);
 }
