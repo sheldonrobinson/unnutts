@@ -494,43 +494,96 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 	// Pitch shift
 	soundtouch_setPitchSemiTones(state->stEmotions, state->currentPitch);
 	soundtouch_putSamples(state->stEmotions, samples, count);
-    std::vector<float> processed(count);
-	int received = soundtouch_receiveSamples(state->stEmotions, processed.data(), count);
+	int nSamples = 0;
+	int remaining = count;
+	std::vector<float> result;
+	do
+    {
+		remaining -= nSamples;
+		std::vector<float> processed(remaining);
+		nSamples = soundtouch_receiveSamples(state->stEmotions, processed.data(), remaining);
+		if(nSamples > 0) {
+			// Formant shift
+			std::vector<float> output(processed.data(), processed.data() + nSamples);
+			int nprocessed = nSamples;
+			float shit_factor = is_robot ? 1.2 : 1.0;
+			formant_shift_lpc(processed.data(), nprocessed, 1024, shit_factor, 12, output.data(), &nprocessed);
+			output.resize(nprocessed);
+			// EQ + compression
+			applyEQandCompression(output.data(), nprocessed, state->sampleRate,
+				state->blendedParams.eqFreq, state->blendedParams.eqGain,
+				state->blendedParams.compThreshold, state->blendedParams.compRatio);
 
-	// Formant shift
-    std::vector<float> output(processed.data(), processed.data() + received);
-    int nprocessed = received;
-    float shit_factor = is_robot ? 1.2 : 1.0;
-    formant_shift_lpc(processed.data(), received, 1024, shit_factor, 12, output.data(), &nprocessed);
-    output.resize(nprocessed);
-	// EQ + compression
-	applyEQandCompression(output.data(), nprocessed, state->sampleRate,
-        state->blendedParams.eqFreq, state->blendedParams.eqGain,
-        state->blendedParams.compThreshold, state->blendedParams.compRatio);
+			// Reverb + distortion
+			applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
+			applyDistortion(output.data(), nprocessed, state->blendedParams.distortionAmount);
+			
+			if (is_robot) {
+				soundtouch_putSamples(state->stPitch, output.data(), nprocessed);
+				std::vector<float> pitched(nprocessed);
+				int receivedPitched = soundtouch_receiveSamples(state->stPitch, pitched.data(), nprocessed);
+				
+				soundtouch_putSamples(state->stFormant, pitched.data(), receivedPitched);
+				output.clear(); output.resize(receivedPitched);
+				nprocessed = soundtouch_receiveSamples(state->stFormant, output.data(), receivedPitched);
+				
+				// Add short metallic delay (~15ms) for C-3PO style
+				addShortDelay(output, state->sampleRate, 15.0f, 0.35f);
+				
+				// Normalize
+				normalize(output);
+			}
+			
+			output.resize(nprocessed);
+			result.insert(result.end(), output.begin(), output.end());
+		}		
+	} while (nSamples != 0);
+	
+	// Now the input file is processed, yet 'flush' few last samples that are
+    // hiding in the SoundTouch's internal processing pipeline.
+    soundtouch_flush(state->stEmotions);
+	do
+    {
+        std::vector<float> processed(remaining);
+		nSamples = soundtouch_receiveSamples(state->stEmotions, processed.data(), remaining);
+		if(nSamples > 0) {
+			// Formant shift
+			std::vector<float> output(processed.data(), processed.data() + nSamples);
+			int nprocessed = nSamples;
+			float shit_factor = is_robot ? 1.2 : 1.0;
+			formant_shift_lpc(processed.data(), nSamples, 1024, shit_factor, 12, output.data(), &nprocessed);
+			output.resize(nprocessed);
+			// EQ + compression
+			applyEQandCompression(output.data(), nprocessed, state->sampleRate,
+				state->blendedParams.eqFreq, state->blendedParams.eqGain,
+				state->blendedParams.compThreshold, state->blendedParams.compRatio);
 
-	// Reverb + distortion
-	applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
-	applyDistortion(output.data(), nprocessed, state->blendedParams.distortionAmount);
+			// Reverb + distortion
+			applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
+			applyDistortion(output.data(), nprocessed, state->blendedParams.distortionAmount);
+			
+			if (is_robot) {
+				soundtouch_putSamples(state->stPitch, output.data(), nprocessed);
+				std::vector<float> pitched(nprocessed);
+				int receivedPitched = soundtouch_receiveSamples(state->stPitch, pitched.data(), nprocessed);
+				
+				soundtouch_putSamples(state->stFormant, pitched.data(), receivedPitched);
+				output.clear(); output.resize(receivedPitched);
+				nprocessed = soundtouch_receiveSamples(state->stFormant, output.data(), receivedPitched);
+				
+				// Add short metallic delay (~15ms) for C-3PO style
+				addShortDelay(output, state->sampleRate, 15.0f, 0.35f);
+				
+				// Normalize
+				normalize(output);
+			}
+			
+			output.resize(nprocessed);
+			result.insert(result.end(), output.begin(), output.end());
+		}
+    } while (nSamples != 0);
 	
-	if (is_robot) {
-		soundtouch_putSamples(state->stPitch, output.data(), nprocessed);
-		std::vector<float> pitched(nprocessed);
-		int receivedPitched = soundtouch_receiveSamples(state->stPitch, pitched.data(), nprocessed);
-		
-		soundtouch_putSamples(state->stFormant, pitched.data(), receivedPitched);
-        output.clear(); output.resize(receivedPitched);
-        nprocessed = soundtouch_receiveSamples(state->stFormant, output.data(), receivedPitched);
-		
-		// Add short metallic delay (~15ms) for C-3PO style
-		addShortDelay(output, state->sampleRate, 15.0f, 0.35f);
-		
-		// Normalize
-		normalize(output);
-	}
-	
-    output.resize(nprocessed);
-	
-	return ut_vector_to_audio_sample(state, output);
+	return ut_vector_to_audio_sample(state, result);
 }
 
 std::string to_lower_case(const std::string& str) {
