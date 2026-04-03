@@ -510,9 +510,9 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 			formant_shift_lpc(processed.data(), nprocessed, 1024, shit_factor, 12, output.data(), &nprocessed);
 			output.resize(nprocessed);
 			// EQ + compression
-			applyEQandCompression(output.data(), nprocessed, state->sampleRate,
-				state->blendedParams.eqFreq, state->blendedParams.eqGain,
-				state->blendedParams.compThreshold, state->blendedParams.compRatio);
+			// applyEQandCompression(output.data(), nprocessed, state->sampleRate,
+				// state->blendedParams.eqFreq, state->blendedParams.eqGain,
+				// state->blendedParams.compThreshold, state->blendedParams.compRatio);
 
 			// Reverb + distortion
 			applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
@@ -538,9 +538,9 @@ ut_audio_sample_t* ut_apply_sfx(speaker_state_t* state, float *samples, int coun
 			formant_shift_lpc(processed.data(), nSamples, 1024, shit_factor, 12, output.data(), &nprocessed);
 			output.resize(nprocessed);
 			// EQ + compression
-			applyEQandCompression(output.data(), nprocessed, state->sampleRate,
-				state->blendedParams.eqFreq, state->blendedParams.eqGain,
-				state->blendedParams.compThreshold, state->blendedParams.compRatio);
+			// applyEQandCompression(output.data(), nprocessed, state->sampleRate,
+				// state->blendedParams.eqFreq, state->blendedParams.eqGain,
+				// state->blendedParams.compThreshold, state->blendedParams.compRatio);
 
 			// Reverb + distortion
 			applyReverb(output.data(), nprocessed, state->blendedParams.reverbAmount);
