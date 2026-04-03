@@ -274,7 +274,7 @@ void applyEQandCompression(float *samples, int count, int sampleRate,
                            float eqFreq, float eqGain,
                            float compThreshold, float compRatio) {
     float omega = 2.0f * M_PI * eqFreq / sampleRate;
-    float alpha = sinf(omega) / (2.0f * 0.707f); // Q=0.707
+    float alpha = sinf(omega) / 2.0f;
     float b0 = 1 + alpha * eqGain;
     float b1 = -2 * cosf(omega);
     float b2 = 1 - alpha * eqGain;
@@ -288,16 +288,16 @@ void applyEQandCompression(float *samples, int count, int sampleRate,
         float y0 = (b0/a0)*x0 + (b1/a0)*x1 + (b2/a0)*x2
                    - (a1/a0)*y1 - (a2/a0)*y2;
 
-        x2 = x1; x1 = x0;
-        y2 = y1; y1 = y0;
         // Compression
-        float absY = fabs(y0);
-        if (absY > compThreshold) {
-            float excess = absY - compThreshold;
+		float absY0 = fabsf(y0);
+        if (absY0 > compThreshold) {
+            float excess = absY0 - compThreshold;
             y0 = (y0 > 0 ? 1 : -1) * (compThreshold + excess / compRatio);
         }
+
         samples[i] = y0;
-        
+        x2 = x1; x1 = x0;
+        y2 = y1; y1 = y0;
     }
 }
 
@@ -439,21 +439,21 @@ void formant_shift_lpc(float* input, int signal_length, int N, float shift_facto
 
 // Simple reverb
 void applyReverb(float *samples, int count, float amount) {
-    if (amount <= 0.0f) return;
-    static float delayBuffer[22050] = {0};
+	static std::vector<float> delayBuffer(SAMPLE_RATE, 0.0f);
     static int delayIndex = 0;
-    int delaySamples = 1000;
+    int delaySamples = SAMPLE_RATE / 16;
     for (int i = 0; i < count; i++) {
         float delayed = delayBuffer[delayIndex];
-        delayBuffer[delayIndex] = samples[i] + delayed * 0.5f;
-        samples[i] += delayed * amount;
+        float wet = samples[i] + delayed * amount;
+        delayBuffer[delayIndex] = wet;
+        samples[i] = wet;
         delayIndex = (delayIndex + 1) % delaySamples;
     }
 }
 
 // Simple distortion
 void applyDistortion(float *samples, int count, float amount) {
-    if (amount <= 0.0f) return;
+	if(amount <= 0.0f) return;
     for (int i = 0; i < count; i++) {
         float s = samples[i] * (1.0f + amount * 5.0f);
         if (s > 1.0f) s = 1.0f;
